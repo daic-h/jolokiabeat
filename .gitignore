@@ -1,0 +1,9 @@
+/.idea
+/build
+
+.DS_Store
+/jolokiabeat
+/jolokiabeat.test
+*.pyc
+
+vendor

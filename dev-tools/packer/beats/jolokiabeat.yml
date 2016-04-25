@@ -1,0 +1,4 @@
+beat_name: jolokiabeat
+beat_url: 'https://github.com/daichirata'
+beat_repo: 'github.com/daichirata'
+beat_description: Sends jolokiabeat metrics to Logstash or directly to Elasticsearch.

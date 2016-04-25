@@ -8,5 +8,13 @@ type Config struct {
 }
 
 type JolokiabeatConfig struct {
-	Period string `yaml:"period"`
+	Period string
+	Hosts  []string
+	Proxy  ProxyConfig
+}
+
+type ProxyConfig struct {
+	URL      string
+	Password string
+	User     string
 }

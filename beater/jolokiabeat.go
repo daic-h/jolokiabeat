@@ -6,7 +6,6 @@ import (
 
 	"github.com/elastic/beats/libbeat/beat"
 	"github.com/elastic/beats/libbeat/cfgfile"
-	"github.com/elastic/beats/libbeat/common"
 	"github.com/elastic/beats/libbeat/logp"
 
 	"github.com/daichirata/jolokiabeat/config"
@@ -16,6 +15,8 @@ type Jolokiabeat struct {
 	beatConfig *config.Config
 	done       chan struct{}
 	period     time.Duration
+
+	client *Jolokiabeat
 }
 
 // Creates beater
@@ -35,18 +36,24 @@ func (bt *Jolokiabeat) Config(b *beat.Beat) error {
 		return fmt.Errorf("Error reading config file: %v", err)
 	}
 
-	return nil
-}
-
-func (bt *Jolokiabeat) Setup(b *beat.Beat) error {
-
 	// Setting default period if not set
 	if bt.beatConfig.Jolokiabeat.Period == "" {
 		bt.beatConfig.Jolokiabeat.Period = "1s"
 	}
 
-	var err error
 	bt.period, err = time.ParseDuration(bt.beatConfig.Jolokiabeat.Period)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (bt *Jolokiabeat) Setup(b *beat.Beat) error {
+	conf := bt.beatConfig.Jolokiabeat
+
+	var err error
+	bt.client, err = NewJolokiaClient(conf.Hosts, &conf.Jolokia.Proxy)
 	if err != nil {
 		return err
 	}
@@ -58,7 +65,6 @@ func (bt *Jolokiabeat) Run(b *beat.Beat) error {
 	logp.Info("jolokiabeat is running! Hit CTRL-C to stop it.")
 
 	ticker := time.NewTicker(bt.period)
-	counter := 1
 	for {
 		select {
 		case <-bt.done:
@@ -66,14 +72,18 @@ func (bt *Jolokiabeat) Run(b *beat.Beat) error {
 		case <-ticker.C:
 		}
 
-		event := common.MapStr{
-			"@timestamp": common.Time(time.Now()),
-			"type":       b.Name,
-			"counter":    counter,
+		timerStart := time.Now()
+
+		events := bt.client.GetJMXEvents()
+		for _, event := range events {
+			b.Events.PublishEvent(event)
 		}
-		b.Events.PublishEvent(event)
-		logp.Info("Event sent")
-		counter++
+
+		timerEnd := time.Now()
+		duration := timerEnd.Sub(timerStart)
+		if duration.Nanoseconds() > bt.period.Nanoseconds() {
+			logp.Warn("Ignoring tick(s) due to processing taking longer than one period")
+		}
 	}
 }
 
